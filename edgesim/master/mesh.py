@@ -152,27 +152,37 @@ def add_edgesim_rules(net, topo):
 
         info( net[router].cmd( 'route -n' ) )
 
-def connectToRootNS(net, num_cloudlets):
-    # root = net.addHost('root', ip='10.0.0.201/24', defaultRoute='via 10.0.0.1', inNamespace=False)
-    # net.addLink(root, cloudlet_switches[0], intfName1='root_cs0', intfName2='cs0_root')
-
+def connectToRootNS(net, num_cloudlets, root_to_dev_ip='13.0.0.3', dev_to_root_ip='13.0.0.2'):
     root = Node('root', inNamespace=False)
     switch = net['cs0']
     ip = '10.0.0.201'
     intf = net.addLink( root, switch ).intf1
     root.setIP( ip, intf=intf )
 
+    # TODO better id?
+    dpid = '%010x' % 130013
+    device_switch = net.addSwitch('ds', dpid=dpid)
+    intf = net.addLink( root, device_switch).intf1
+    root.setIP( root_to_dev_ip, intf=intf)
+
+    intf = net.addLink(net['device'], device_switch, intf1Name="dev_root", intf2Name="root_dev").intf1
+    net['device'].setIP(dev_to_root_ip, intf=intf)
+    # TODO do we need routing rules for device?
+
     routes = ['11.0.0.0/16', '12.0.0.0/16']
     for i in range(1, num_cloudlets):
         routes.append('10.0.%d.0/24' % i)
 
     for route in routes:
-        # root.cmd('route add -net ' + route + ' dev ' + str(intf))
         root.cmd('ip route add to %s via 10.0.0.1 dev %s' % (route, intf))
 
-def enableSSH(node):
-    node.cmd('/usr/sbin/sshd -D -o UseDNS=no -u0 &')
-    waitListening(server=node, port=22, timeout=5)
+def enableSSH(node, extraOpts='', wait_listen_ip=None):
+    node.cmd('/usr/sbin/sshd -D -o UseDNS=no %s -u0 &' % extraOpts)
+    if not wait_listen_ip:
+        waitListening(server=node, port=22, timeout=5)
+    else:
+        waitListening(server=wait_listen_ip, port=22, timeout=5)
+
 
 def run():
     "Test linux router"
@@ -183,10 +193,13 @@ def run():
     net.start()
 
     add_edgesim_rules(net, topo)
-    info( '*** Routing Table on Router:\n' )
+    enableSSH(net['server'])
+    enableSSH(net['device'], extraOpts='-o ListenAddress=13.0.0.2')
+
     CLI( net )
 
     # move code
+    """
     current_switch = net['ts0']
     target_switch = net['ts1']
 
@@ -196,8 +209,10 @@ def run():
 
     device.setIP('12.0.1.2')
     device.cmd('ip route add to 0.0.0.0/0 via 12.0.1.1')
+    """
 
-    CLI( net )
+    net['server'].cmd('kill %/usr/sbin/sshd')
+    net['client'].cmd('kill %/usr/sbin/sshd')
     net.stop()
 
 if __name__ == '__main__':

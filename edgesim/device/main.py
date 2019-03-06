@@ -8,7 +8,7 @@ from edgesim.utils import move
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--registry", default="10.0.0.200:8888")
-    parser.add_argument("--edgesim-master", default="10.0.0.201:9999",
+    parser.add_argument("--edgesim-master", default="13.0.0.3:9999",
         help="location of server to move device",
     )
 
