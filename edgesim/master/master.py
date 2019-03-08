@@ -22,8 +22,8 @@ class Master(object):
         enableSSH(self.net['device'], extraOpts="-o ListenAddress=13.0.0.2",
             wait_listen_ip='13.0.0.2')
 
-        makeTerm(self.net['device'])
-        makeTerm(self.net['server'])
+        # makeTerm(self.net['device'])
+        # makeTerm(self.net['server'])
 
         atexit.register(self.close)
 
