@@ -4,10 +4,13 @@ from mininet.net import Mininet
 from mininet.cli import CLI
 from mininet.term import makeTerm
 
+from edgesim.utils import get_ip
 from edgesim.utils.server import run_server
 
 from .mesh import EdgesimNet, TCLink, connectToRootNS, add_edgesim_rules, enableSSH
 from .mobility_switch import MobilitySwitch
+
+import config
 
 class Master(object):
     def __init__(self):
@@ -15,12 +18,16 @@ class Master(object):
 
         topo = EdgesimNet(num_towers=3, num_cloudlets=3)
         self.net = Mininet(topo=topo, link=TCLink, switch=MobilitySwitch)
-        connectToRootNS(self.net, num_cloudlets=3, root_to_dev_ip='13.0.0.3', dev_to_root_ip='13.0.0.2')
+        connectToRootNS(self.net, num_cloudlets=3)
         self.net.start()
         add_edgesim_rules(self.net, topo)
+
         enableSSH(self.net['server'])
-        enableSSH(self.net['device'], extraOpts="-o ListenAddress=13.0.0.2",
-            wait_listen_ip='13.0.0.2')
+        enableSSH(
+            self.net['device'],
+            extraOpts="-o ListenAddress=%s" % config.device_to_master_ip,
+            wait_listen_ip=config.device_to_master_ip,
+        )
 
         # makeTerm(self.net['device'])
         # makeTerm(self.net['server'])
@@ -53,8 +60,10 @@ class Master(object):
         current_switch.moveIntf(sintf, target_switch, newname='%s_dev' % (tower, ))
 
         tower_num = int(tower[2:])
-        device.setIP('12.0.%d.2/24' % tower_num, intf=dintf)
-        device.cmd('ip route add to 0.0.0.0/0 via 12.0.%d.1' % tower_num)
+        new_ip = get_ip(a=config.tower_network_prefix, c=tower_num, d=2, suffix=24)
+        device.setIP(new_ip, intf=dintf)
+        default_route = get_ip(a=config.tower_network_prefix, c=tower_num, d=1)
+        device.cmd('ip route add to 0.0.0.0/0 via %s' % default_route)
 
         return device.cmd("""ifconfig | grep 'dev_ts' -A1 | tail -1 | awk '{ print $2 }'""")
 

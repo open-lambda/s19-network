@@ -10,6 +10,9 @@ from mininet.util import waitListening
 
 from mobility_switch import MobilitySwitch
 
+from edgesim.utils import get_ip
+import config
+
 class TCLink( Link ):
     "Link with symmetric TC interfaces configured via opts"
     def __init__( self, node1, node2, port1=None, port2=None,
@@ -63,8 +66,15 @@ class EdgesimNet(Topo):
         cloudlet_hosts = []
 
         for i in xrange(num_cloudlets):
-            ip = '10.0.%d.1/24' % i
-            cr = self.addNode('cr%d' % i, cls=LinuxRouter, ip=ip, defaultRoute='via 11.0.%d.1' % ((i * num_towers) + i))
+            ip = get_ip(a=config.cloudlet_network_prefix, c=i, d=1, suffix=24)
+            default_route_ip = get_ip(a=config.cloudlet_network_prefix, c=((i * num_towers) + i), d=1)
+
+            cr = self.addNode(
+                'cr%d' % i,
+                cls=LinuxRouter,
+                ip=ip,
+                defaultRoute='via %s' % default_route_ip,
+            )
             cloudlet_routers.append(cr)
 
             cs = self.addSwitch('cs%d' % i, dpid=D('cs%d' % i))
@@ -76,8 +86,10 @@ class EdgesimNet(Topo):
                 params2={'ip': ip},
             )
 
-            ch = self.addHost('ch%d' % i, ip='10.0.%d.2/24' % i,
-                defaultRoute='via 10.0.%d.1' % i,
+            ip = get_ip(a=config.cloudlet_network_prefix, c=i, d=2, suffix=24)
+            default_route_ip = get_ip(a=config.cloudlet_network_prefix, c=i, d=1)
+            ch = self.addHost('ch%d' % i, ip=ip,
+                defaultRoute='via %s' % default_route_ip,
             )
 
             self.addLink(ch, cs,
@@ -89,7 +101,7 @@ class EdgesimNet(Topo):
         tower_routers = []
         tower_switches = []
         for i in xrange(num_towers):
-            ip = '12.0.%d.1/24' % i
+            ip = get_ip(a=config.tower_network_prefix, c=i, d=1, suffix=24)
             tr = self.addNode('tr%d' % i, cls=LinuxRouter, ip=ip)
             tower_routers.append(tr)
 
@@ -103,13 +115,13 @@ class EdgesimNet(Topo):
 
         self._edgesim_rules = defaultdict(list)
         for t in xrange(num_towers):
-            tower_network = '12.0.%d.0/24' % t
+            tower_network = get_ip(a=config.tower_network_prefix, c=t, suffix=24)
             tower_router = 'tr%d' % t
             for c in xrange(num_cloudlets):
                 cloudlet_router = 'cr%d' % c
-                cloudlet_network = '10.0.%d.0/24' % c
-                ip = '11.0.%d.' % (t * num_cloudlets + c) + '%d/24'
-                next_hop = '11.0.%d.' % (t * num_cloudlets + c) + '%d'
+                cloudlet_network = get_ip(a=config.cloudlet_network_prefix, c=c, suffix=24)
+                ip = get_ip(a=config.mesh_network_prefix, c=((t*num_cloudlets) + c), d="%d", suffix=24)
+                next_hop = get_ip(a=config.mesh_network_prefix, c=((t*num_cloudlets) + c), d="%d")
                 self.addLink(tower_routers[t], cloudlet_routers[c],
                     intfName1='tr%d_cr%d' % (t,c), intfName2='cr%d_tr%d' % (c,t),
                     params1={'ip': ip % 1 }, params2={'ip': ip % 2},
@@ -121,12 +133,15 @@ class EdgesimNet(Topo):
                 self._edgesim_rules[cloudlet_router].append('ip route add to %s via %s' % (tower_network, next_hop % 1))
                 # ip route add to 10.0.3.0/24 via 10.0.1.2 dev r1-eth1
 
-        device = self.addHost('device', ip='12.0.0.2/24', defaultRoute='via 12.0.0.1')
+        device_ip = get_ip(a=config.tower_network_prefix, d=2, suffix=24)
+        device_default_route = get_ip(a=config.tower_network_prefix, d=1)
+        device = self.addHost('device', ip=device_ip, defaultRoute='via %s' % device_default_route)
         self.addLink(device, tower_switches[0],
             intfName1='dev_ts', intfName2='ts0_dev',
         )
 
-        server = self.addHost('server', ip='10.0.0.200/24', defaultRoute='via 10.0.0.1')
+        registry_default_route = get_ip(a=config.cloudlet_network_prefix, d=1)
+        server = self.addHost('server', ip=config.registry_ip, defaultRoute='via %s' % registry_default_route)
         self.addLink(server, cloudlet_switches[0],
             intfName1='server_cs0', intfName2='cs0_server')
 
@@ -152,10 +167,10 @@ def add_edgesim_rules(net, topo):
 
         info( net[router].cmd( 'route -n' ) )
 
-def connectToRootNS(net, num_cloudlets, root_to_dev_ip='13.0.0.3', dev_to_root_ip='13.0.0.2'):
+def connectToRootNS(net, num_cloudlets):
     root = Node('root', inNamespace=False)
     switch = net['cs0']
-    ip = '10.0.0.201'
+    ip = config.master_root_ip
     intf = net.addLink( root, switch ).intf1
     root.setIP( ip, intf=intf )
 
@@ -163,18 +178,19 @@ def connectToRootNS(net, num_cloudlets, root_to_dev_ip='13.0.0.3', dev_to_root_i
     dpid = '%010x' % 130013
     device_switch = net.addSwitch('ds', dpid=dpid)
     intf = net.addLink( root, device_switch).intf1
-    root.setIP( root_to_dev_ip, intf=intf)
+    root.setIP( config.master_to_device_ip, intf=intf)
 
     intf = net.addLink(net['device'], device_switch, intf1Name="dev_root", intf2Name="root_dev").intf1
-    net['device'].setIP(dev_to_root_ip, intf=intf)
+    net['device'].setIP(config.device_to_master_ip, intf=intf)
     # TODO do we need routing rules for device?
 
-    routes = ['11.0.0.0/16', '12.0.0.0/16']
+    routes = [get_ip(a=x, suffix=16) for x in (config.mesh_network_prefix, config.tower_network_prefix, )]
     for i in range(1, num_cloudlets):
-        routes.append('10.0.%d.0/24' % i)
+        routes.append(get_ip(a=config.cloudlet_network_prefix, c=i, suffix=24))
 
+    default_route_ip = get_ip(a=config.cloudlet_network_prefix, d=1)
     for route in routes:
-        root.cmd('ip route add to %s via 10.0.0.1 dev %s' % (route, intf))
+        root.cmd('ip route add to %s via %s dev %s' % (route, default_route_ip, intf))
 
 def enableSSH(node, extraOpts='', wait_listen_ip=None):
     node.cmd('/usr/sbin/sshd -D -o UseDNS=no %s -u0 &' % extraOpts)

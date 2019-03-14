@@ -5,7 +5,7 @@ from edgesim.utils.server import run_server
 class RegistryServer(object):
     def __init__(self):
         self.edge_clusters = dict([
-            ('ch%d' % i, '10.0.%d.2' % i) for i in xrange(3)
+            ('ch%d' % i, '20.0.%d.2' % i) for i in xrange(3)
         ])
 
     def register(self, ip, name, location):
