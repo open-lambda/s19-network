@@ -3,6 +3,7 @@ import atexit
 from mininet.net import Mininet
 from mininet.cli import CLI
 from mininet.term import makeTerm
+from mininet.log import setLogLevel, info
 
 from edgesim.utils import get_ip
 from edgesim.utils.server import run_server
@@ -14,11 +15,12 @@ import config
 
 class Master(object):
     def __init__(self):
+        setLogLevel( 'info' )
         self.tower_to_locations = {'ts0': 0, 'ts1': 5, 'ts2': 10}
 
-        topo = EdgesimNet(num_towers=3, num_cloudlets=3)
+        topo = EdgesimNet(num_towers=config.num_towers, num_cloudlets=config.num_cloudlets)
         self.net = Mininet(topo=topo, link=TCLink, switch=MobilitySwitch)
-        connectToRootNS(self.net, num_cloudlets=3)
+        connectToRootNS(self.net, num_cloudlets=config.num_cloudlets)
         self.net.start()
         add_edgesim_rules(self.net, topo)
 
@@ -29,6 +31,9 @@ class Master(object):
             wait_listen_ip=config.device_to_master_ip,
         )
 
+        for i in xrange(config.num_cloudlets):
+            enableSSH(self.net['ch%d' % i])
+
         # makeTerm(self.net['device'])
         # makeTerm(self.net['server'])
 
@@ -38,10 +43,16 @@ class Master(object):
         for host in ('server', 'device', ):
             self.net[host].cmd('kill %/usr/sbin/sshd')
 
+        for i in xrange(config.num_cloudlets):
+            self.net['ch%d' % i].cmd('kill %/usr/sbin/sshd')
+
         self.net.stop()
 
     def hello(self):
         return {"blah": "blah"}
+
+    def launch_xterm(self, name):
+        makeTerm(self.net[name])
 
     def move_device(self, tower):
         device = self.net["device"]
@@ -90,4 +101,5 @@ class Master(object):
             "add": self.add,
             "move_device": self.move_device,
             "update_location": self.update_location,
+            "launch_xterm": self.launch_xterm,
         }

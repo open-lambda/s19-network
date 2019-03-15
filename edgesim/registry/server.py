@@ -4,15 +4,17 @@ from edgesim.utils.server import run_server
 
 class RegistryServer(object):
     def __init__(self):
-        self.edge_clusters = dict([
-            ('ch%d' % i, '20.0.%d.2' % i) for i in xrange(3)
-        ])
+        self.edge_clusters = {}
 
     def register(self, ip, name, location):
-        self.edge_clusters[name] = ip
+        self.edge_clusters[name] = {
+            "ip": ip, "location": location,
+        }
 
     def get_edge_clusters(self, location):
-        return self.edge_clusters.values()
+        ip_location_pairs = [ (abs(i['location'] - location), i['ip']) for i in self.edge_clusters.itervalues() ]
+        ip_location_pairs.sort()
+        return [i[1] for i in ip_location_pairs[:3]]
 
     def get_http_endpoints(self):
         return {
@@ -22,7 +24,7 @@ class RegistryServer(object):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--host", default="20.0.0.200")
     parser.add_argument("--port", type=int, default=8888)
     args = parser.parse_args()
     run_server(args.host, args.port, RegistryServer())

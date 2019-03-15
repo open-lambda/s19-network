@@ -67,7 +67,7 @@ class EdgesimNet(Topo):
 
         for i in xrange(num_cloudlets):
             ip = get_ip(a=config.cloudlet_network_prefix, c=i, d=1, suffix=24)
-            default_route_ip = get_ip(a=config.cloudlet_network_prefix, c=((i * num_towers) + i), d=1)
+            default_route_ip = get_ip(a=config.mesh_network_prefix, c=((i * num_towers) + i), d=1)
 
             cr = self.addNode(
                 'cr%d' % i,
@@ -141,7 +141,7 @@ class EdgesimNet(Topo):
         )
 
         registry_default_route = get_ip(a=config.cloudlet_network_prefix, d=1)
-        server = self.addHost('server', ip=config.registry_ip, defaultRoute='via %s' % registry_default_route)
+        server = self.addHost('server', ip=config.registry_ip + "/24", defaultRoute='via %s' % registry_default_route)
         self.addLink(server, cloudlet_switches[0],
             intfName1='server_cs0', intfName2='cs0_server')
 
@@ -171,8 +171,8 @@ def connectToRootNS(net, num_cloudlets):
     root = Node('root', inNamespace=False)
     switch = net['cs0']
     ip = config.master_root_ip
-    intf = net.addLink( root, switch ).intf1
-    root.setIP( ip, intf=intf )
+    main_intf = net.addLink( root, switch ).intf1
+    root.setIP( ip, intf=main_intf )
 
     # TODO better id?
     dpid = '%010x' % 130013
@@ -189,8 +189,10 @@ def connectToRootNS(net, num_cloudlets):
         routes.append(get_ip(a=config.cloudlet_network_prefix, c=i, suffix=24))
 
     default_route_ip = get_ip(a=config.cloudlet_network_prefix, d=1)
+    print "root routes"
     for route in routes:
-        root.cmd('ip route add to %s via %s dev %s' % (route, default_route_ip, intf))
+        print 'ip route add to %s via %s dev %s' % (route, default_route_ip, main_intf)
+        root.cmd('ip route add to %s via %s dev %s' % (route, default_route_ip, main_intf))
 
 def enableSSH(node, extraOpts='', wait_listen_ip=None):
     node.cmd('/usr/sbin/sshd -D -o UseDNS=no %s -u0 &' % extraOpts)

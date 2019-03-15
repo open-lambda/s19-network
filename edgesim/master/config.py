@@ -1,5 +1,5 @@
-default_num_towers = 3
-default_num_cloudlets = 3
+num_towers = 3
+num_cloudlets = 3
 
 cloudlet_network_prefix = 20
 mesh_network_prefix = 21
