@@ -93,7 +93,7 @@ class Master(object):
         for ts, loc in self.tower_to_locations.iteritems():
             distances.append((abs(location - loc), ts))
 
-        self.move_device(min(distances)[1])
+        return self.move_device(min(distances)[1])
 
     def get_http_endpoints(self):
         return {

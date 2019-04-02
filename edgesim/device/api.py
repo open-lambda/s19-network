@@ -39,6 +39,7 @@ class EdgeNet(object):
             thread.join()
 
         self.selected_edge_cluster = sorted(responses, key=lambda d: (d['latency'], d['cpu_load'], d['memory_used']))[0]["ip_addr"]
+        return self.selected_edge_cluster
 
 
 if __name__ == "__main__":
