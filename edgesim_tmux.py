@@ -1,76 +1,135 @@
 import libtmux
 import argparse
 
+DEVICE_IP = "23.0.0.2"
+REGISTRY_IP = "20.0.0.200"
+CLOUDLET_IP_FORMAT = "20.0.%d.2"
+
 def create(session):
+    # 2 panes in the device window
     device_window = session.new_window(attach=False, window_name="device")
+    device_window.split_window(attach=False, vertical=False)
+
+    # 1 pane / 1 window for registry
     registry_window = session.new_window(attach=False, window_name="registry")
-    cloudlet_windows = []
-    for i in xrange(3):
-        cloudlet_windows.append(
-            session.new_window(attach=False, window_name='ch%d' % i),
-        )
 
-def get_windows(session):
-    device_window = session.find_where({'window_name': "device"})
-    registry_window = session.find_where({'window_name': 'registry'})
-    cloudlet_windows = []
-    for i in xrange(3):
-        cloudlet_windows.append(
-                session.find_where({'window_name': 'ch%d' % i}),
-        )
+    # 3 panes for cloudlet stats
+    cloudlet_stats_window = session.new_window(attach=False, window_name="cloudlet_stats")
+    cloudlet_stats_window.split_window(attach=False)
+    cloudlet_stats_window.split_window(attach=False)
+    cloudlet_stats_window.select_layout("even-vertical")
 
-    return device_window, registry_window, cloudlet_windows
+    # 3 panes for cloudlet edgebit backend
+    cloudlet_edgebit_window = session.new_window(attach=False, window_name="cloudlet_edgebit_backend")
+    cloudlet_edgebit_window.split_window(attach=False)
+    cloudlet_edgebit_window.split_window(attach=False)
+    cloudlet_edgebit_window.select_layout("even-vertical")
 
-def get_first_pane_for_windows(device_window, registry_window, cloudlet_windows):
-    device_pane = device_window.list_panes()[0]
-    registry_pane = registry_window.list_panes()[0]
-    cloudlet_panes = []
-    for i in xrange(3):
-        cloudlet_panes.append(cloudlet_windows[i].list_panes()[0])
-    return device_pane, registry_pane, cloudlet_panes
+class Windows(object):
+    def __init__(self, session):
+        self.session = session
+        get_window = lambda x: session.find_where({'window_name': x})
+
+        self.device = get_window("device")
+        self.registry = get_window("registry")
+        self.stats = get_window("cloudlet_stats")
+        self.edgebit_backend = get_window("cloudlet_edgebit_backend")
+
+        self.windows = [self.device, self.registry, self.stats, self.edgebit_backend]
 
 def kill(session):
-    device_window, registry_window, cloudlet_windows = get_windows(session)
+    wobj = Windows(session)
+    for w in wobj.windows:
+        w.kill_window()
 
-    device_window.kill_window()
-    registry_window.kill_window()
-    for i in cloudlet_windows:
-        i.kill_window()
+def unssh(session):
+    wobj = Windows(session)
+    for w in wobj.windows:
+        for pane in w.list_panes():
+            pane.send_keys('exit', enter=True)
 
 def ssh(session):
-    device_pane, registry_pane, cloudlet_panes = get_first_pane_for_windows(*get_windows(session))
+    wobj = Windows(session)
 
-    device_pane.send_keys('ssh -i ~/id_rsa 23.0.0.2', enter=True)
-    registry_pane.send_keys('ssh -i ~/id_rsa 20.0.0.200', enter=True)
+    for pane in wobj.device.list_panes():
+        pane.send_keys('ssh -i ~/id_rsa %s' % DEVICE_IP, enter=True)
 
-    for i in xrange(3):
-        cloudlet_panes[i].send_keys('ssh -i ~/id_rsa 20.0.%d.2' % i, enter=True)
+    for pane in wobj.registry.list_panes():
+        pane.send_keys('ssh -i ~/id_rsa %s' % REGISTRY_IP, enter=True)
+
+    for i, pane in enumerate(wobj.stats.list_panes()):
+        cloudlet_ip = CLOUDLET_IP_FORMAT % i
+        pane.send_keys('ssh -i ~/id_rsa %s' % cloudlet_ip, enter=True)
+
+    for i, pane in enumerate(wobj.edgebit_backend.list_panes()):
+        cloudlet_ip = CLOUDLET_IP_FORMAT % i
+        pane.send_keys('ssh -i ~/id_rsa %s' % cloudlet_ip, enter=True)
 
 def ps1(session):
-    device_pane, registry_pane, cloudlet_panes = get_first_pane_for_windows(*get_windows(session))
+    wobj = Windows(session)
 
-    device_pane.send_keys("""export PS1='device : \w $ '""", enter=True)
-    registry_pane.send_keys("""export PS1='registry : \w $ '""", enter=True)
-    for i in xrange(3):
-        cloudlet_panes[i].send_keys("""export PS1='ch%d : \w $ '""" % i, enter=True)
+    ps1_fmt = """export PS1='{} : \w $ '"""
+    for pane in wobj.device.list_panes():
+        pane.send_keys(ps1_fmt.format("device"), enter=True)
+        pane.clear()
+
+    for pane in wobj.registry.list_panes():
+        pane.send_keys(ps1_fmt.format("registry"), enter=True)
+        pane.clear()
+
+    for i, pane in enumerate(wobj.stats.list_panes()):
+        pane.send_keys(ps1_fmt.format("ch%d" % i), enter=True)
+        pane.clear()
+
+    for i, pane in enumerate(wobj.edgebit_backend.list_panes()):
+        pane.send_keys(ps1_fmt.format("ch%d" % i), enter=True)
+        pane.clear()
+
+def start(session):
+    wobj = Windows(session)
+    rpane = wobj.registry.list_panes()[0]
+    rpane.send_keys("cd ~/edgesim && python -m edgesim.registry.server", enter=True)
+    raw_input("Press enter when registry is ready to accept connections > ")
+
+    cmd_fmt = "cd ~/edgesim && python -m edgesim.cloudlet.stats --name {name} --location {loc} --host {host} --port 8888"
+    for i, pane in enumerate(wobj.stats.list_panes()):
+        host = CLOUDLET_IP_FORMAT % i
+        location = i * 5
+        name = 'ch%d' % i
+        cmd = cmd_fmt.format(name=name, host=host, loc=location)
+        pane.send_keys(cmd, enter=True)
+
+    cmd_fmt = "cd ~/edgesim/edgebit/backend && python server.py --host {host} --port 8090"
+    for i, pane in enumerate(wobj.edgebit_backend.list_panes()):
+        host = CLOUDLET_IP_FORMAT % i
+        cmd = cmd_fmt.format(host=host)
+        pane.send_keys(cmd, enter=True)
+
+
+    devpanes = wobj.device.list_panes()
+    devpanes[0].send_keys('# cd ~/edgesim/edgebit/device && python app.py', enter=True)
+    devpanes[1].send_keys('# cd ~/edgesim/edgesim && python keep_moving.py --rate 2', enter=True)
+
+def stop(session):
+    wobj = Windows(session)
+    for w in wobj.windows:
+        for pane in w.list_panes():
+            pane.cmd('send-keys', 'C-c')
+
+def clear(session):
+    wobj = Windows(session)
+    for w in wobj.windows:
+        for pane in w.list_panes():
+            pane.clear()
 
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--session-name", required=True)
     parser.add_argument("--action", required=True, choices=[
-        'create', 'kill', 'ssh', 'ps1',
+        'create', 'kill', 'ssh', 'ps1', 'unssh', 'start', 'stop', 'clear',
     ])
     args = parser.parse_args()
     return args
-
-# cd edgesim && python -m edgesim.registry.server
-#
-# cd edgesim && python -m edgesim.cloudlet.stats --name ch0 --location 0 --host 20.0.0.2 --port 8888
-# cd edgesim && python -m edgesim.cloudlet.stats --name ch1 --location 5 --host 20.0.1.2 --port 8888
-# cd edgesim && python -m edgesim.cloudlet.stats --name ch2 --location 10 --host 20.0.2.2 --port 8888
-# cd edgesim/edgebit/backend && python server.py --host 20.0.0.2 --port 8090
-# cd edgesim/edgebit/backend && python server.py --host 20.0.1.2 --port 8090
-# cd edgesim/edgebit/backend && python server.py --host 20.0.2.2 --port 8090
 
 if __name__ == '__main__':
     args = get_args()
@@ -81,6 +140,10 @@ if __name__ == '__main__':
         'kill': kill,
         'ssh': ssh,
         'ps1': ps1,
+        'unssh': unssh,
+        'start': start,
+        'stop': stop,
+        'clear': clear,
     }
 
     fns[args.action](session)
