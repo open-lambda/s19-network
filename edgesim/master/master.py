@@ -54,6 +54,9 @@ class Master(object):
     def launch_xterm(self, name):
         makeTerm(self.net[name])
 
+    def launch_cli(self):
+        CLI(self.net)
+
     def move_device(self, tower):
         device = self.net["device"]
         intf = device.nameToIntf["dev_ts"]
@@ -102,4 +105,5 @@ class Master(object):
             "move_device": self.move_device,
             "update_location": self.update_location,
             "launch_xterm": self.launch_xterm,
+            "launch_cli": self.launch_cli,
         }

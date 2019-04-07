@@ -11,28 +11,29 @@ sys.path = [edgesim_package] + sys.path
 from edgesim.device.api import EdgeNet
 
 class Edgebit(object):
-    def __init__(self):
+    def __init__(self, policy="default"):
         self.steps = 0
         # should be 20.0.0.200 (hopefully)
-        self.net = EdgeNet(100, "registry.edgesim.com:8888")
-        self.update_current_location()
+        self.net = EdgeNet("registry.edgesim.com:8888", policy=policy)
+        # self.update_current_location()
 
-    def update_current_location(self):
-        # read in the location from file
-        with open("/tmp/location", "r") as f:
-            location = int(f.read().strip())
+  #   def update_current_location(self):
+  #       # read in the location from file
+  #       with open("/tmp/location", "r") as f:
+  #           location = int(f.read().strip())
 
-        self.location = location
-        self.net.set_location(self.location)
+  #       self.location = location
+  #       self.net.set_location(self.location)
 
     def send_steps(self):
         self.steps += 1
-        self.update_current_location()
+        # self.update_current_location()
 
-        url = "http://%s:8090/steps" % self.net.pick_edge_cluster()
+        url = "http://%s:8090/steps" % self.net.get_edge_cluster()
         resp = requests.post(url, json={'steps': self.steps})
         assert resp.status_code == 200
         print "SENT : STEPS = %s to %s" % (str(self.steps), url)
+        print "Current location: %s" % self.net.get_location()
         time.sleep(2)
 
     def run(self):
@@ -43,6 +44,11 @@ if __name__ == "__main__":
     with open("/tmp/location", "w") as fp:
         fp.write("0")
 
-    eb = Edgebit()
+    try:
+        policy = sys.argv[1]
+    except IndexError:
+        policy = "default"
+
+    eb = Edgebit(policy=policy)
     eb.run()
 

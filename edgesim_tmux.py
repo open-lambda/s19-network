@@ -68,7 +68,7 @@ def ssh(session):
 def ps1(session):
     wobj = Windows(session)
 
-    ps1_fmt = """export PS1='{} : \w $ '"""
+    ps1_fmt = """export PS1='{}:\w$ '"""
     for pane in wobj.device.list_panes():
         pane.send_keys(ps1_fmt.format("device"), enter=True)
         pane.clear()
