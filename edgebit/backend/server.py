@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import logging
 import sys
 import os
@@ -12,12 +13,21 @@ sys.path = [edgesim_package] + sys.path
 from edgesim.utils.server import run_server
 
 class EdgebitServer(object):
-    def steps(self, steps):
-        print steps
+    def foo(self, data, rounds):
+        rounds = int(rounds)
+        assert rounds > 0, "rounds has to be > 0"
+
+        i = 0
+
+        while i < rounds:
+            i += 1
+            result = hashlib.sha256(data)
+
+        return result.hexdigest()
 
     def get_http_endpoints(self):
         return {
-            "steps": self.steps,
+            "foo": self.foo,
         }
 
 def main():
