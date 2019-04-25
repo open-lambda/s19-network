@@ -18,8 +18,9 @@ class EdgeNet(object):
         assert rjson.get("status", -1) == 0
 
         self.candidate_edge_clusters = rjson["result"]
+        return rjson["result"]
 
-    def pick_edge_cluster(self):
+    def probe_candidates(self, candidates):
         def worker(ip_addr, responses):
             resp = requests.get("http://%s:8888/stats" % ip_addr)
             rjson = resp.json()["result"]
@@ -27,10 +28,9 @@ class EdgeNet(object):
             rjson["latency"] = resp.elapsed.total_seconds() * 1000
             responses.append(rjson)
 
-
         threads = []
         responses = []
-        for ip_addr in self.candidate_edge_clusters:
+        for ip_addr in candidates:
             thread = Thread(target=worker, args=(ip_addr, responses, ))
             thread.start()
             threads.append(thread)
@@ -38,6 +38,11 @@ class EdgeNet(object):
         for thread in threads:
             thread.join()
 
+        return responses
+
+    def pick_edge_cluster(self):
+        candidates = self.get_candidate_edge_clusters()
+        responses = self.probe_candidates(candidates)
         self.selected_edge_cluster = sorted(responses, key=lambda d: (d['latency'], d['cpu_load'], d['memory_used']))[0]["ip_addr"]
         return self.selected_edge_cluster
 

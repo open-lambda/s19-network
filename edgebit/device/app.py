@@ -10,39 +10,77 @@ sys.path = [edgesim_package] + sys.path
 
 from edgesim.device.api import EdgeNet
 
+CLOUD_IP = "ms0935.utah.cloudlab.us"
+REGISTRY_IP = "ms0935.utah.cloudlab.us"
+SIZE = 512
+POLICY = "random"
+NUM_ITERS = 10
+
 class Edgebit(object):
     def __init__(self):
-        self.steps = 0
-        # should be 20.0.0.200 (hopefully)
-        self.net = EdgeNet(100, "registry.edgesim.com:8888")
-        self.update_current_location()
+        self.results = []
+        self.net = EdgeNet(100, "%s:8888" % REGISTRY_IP)
 
-    def update_current_location(self):
-        # read in the location from file
-        with open("/tmp/location", "r") as f:
-            location = int(f.read().strip())
+    def get_target(self, policy):
+        if policy is "cloud":
+            return CLOUD_IP
 
-        self.location = location
-        self.net.set_location(self.location)
+        target = None
+        candidates = self.net.get_candidate_edge_clusters()
+        key_fn = lambda d: (d['latency'], d['cpu_load'], d['memory_used'])
+        if policy is "random":
+            target = random.choice(candidates)["ip_addr"]
 
-    def send_steps(self):
-        self.steps += 1
-        self.update_current_location()
+        elif policy is "best":
+            results = self.net.probe_candidates(candidates)
+            target = sorted(results, key=key_fn)[0]["ip_addr"]
 
-        url = "http://%s:8090/steps" % self.net.pick_edge_cluster()
-        resp = requests.post(url, json={'steps': self.steps})
-        assert resp.status_code == 200
-        print "SENT : STEPS = %s to %s" % (str(self.steps), url)
-        time.sleep(2)
+        elif policy is "worst":
+            results = self.net.probe_candidates(candidates)
+            target = sorted(results, key=key_fn, reverse=True)[0]["ip_addr"]
+        else:
+            raise Exception("Invalid policy")
 
-    def run(self):
-        while True:
-            self.send_steps()
+        return target
+
+    def send_data(self, size, policy):
+        data = ''.join([random.choice(string.ascii_letters) for i in xrange(size)])
+
+        st = time.time()
+        target = self.get_target(policy)
+        et = time.time()
+
+        time_to_get_target = (et - st)
+
+        st = et
+        url = "http://%s:8090/foo" % target
+        resp = requests.post(url, json={"data": data})
+        rjson = resp.json()
+        assert rjson.get("status", -1) == 0
+        et = time.time()
+
+        time_to_compute = (et - st)
+        self.results.append([time_to_get_target, time_to_compute])
+
+    def run(self, size, policy):
+        i = 0
+        while i < NUM_ITERS:
+            i += 1
+            self.send_data(size, policy)
 
 if __name__ == "__main__":
-    with open("/tmp/location", "w") as fp:
-        fp.write("0")
-
     eb = Edgebit()
-    eb.run()
+    eb.run(SIZE, POLICY)
+    result = { "size": SIZE, "policy": POLICY, "num_iters": NUM_ITERS }
+    result['get_target_timing'] = [i[0] for i in eb.results]
+    result['compute_timing'] = [i[1] for i in eb.results]
+
+    avg = lambda x: sum(x) / float(len(x))
+    result['get_target_timing_avg'] = avg(result['get_target_timing'])
+    result['compute_timing_avg'] = avg(result['compute_timing'])
+
+    result['total_timing'] = [sum(i) for i in eb.results]
+    result['total_timing_avg'] = avg(result['total_timing'])
+
+    print json.dumps(result)
 
