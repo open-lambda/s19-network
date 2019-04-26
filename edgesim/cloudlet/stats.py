@@ -11,7 +11,7 @@ PID = os.getpid()
 class StatsServer(object):
     def get_stats(self):
         return {
-            "num_requests": len(filter(lambda sock: sock.pid != PID, psutil.net_connections())),
+            "num_requests": len(filter(lambda sock: sock.pid is not None and sock.pid != PID, psutil.net_connections())),
             "cpu_load": psutil.cpu_percent(),
             "memory_used": psutil.virtual_memory()._asdict().get("percent", None)
         }
