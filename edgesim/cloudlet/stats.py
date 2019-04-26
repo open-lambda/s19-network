@@ -20,7 +20,11 @@ class StatsServer(object):
 
 def register(args):
     url = "http://%s/register" % args.registry_server
-    payload = {"ip": args.host, "name": args.name, "location": args.location}
+    ip = args.host
+    if args.external_ip is not None:
+        ip = args.external_ip
+
+    payload = {"ip": ip,  "name": args.name, "location": args.location}
     resp = requests.post(url, json=payload)
     assert resp.json()["status"] == 0
 
@@ -31,6 +35,7 @@ def main():
     parser.add_argument("--name", required=True)
     parser.add_argument("--host", required=True)
     parser.add_argument("--port", type=int, default=8888)
+    parser.add_argument("--external-ip", default=None)
     args = parser.parse_args()
 
     # register
