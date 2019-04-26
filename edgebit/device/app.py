@@ -19,7 +19,7 @@ NUM_ITERS = 10
 class Edgebit(object):
     def __init__(self):
         self.results = []
-        self.net = EdgeNet(100, "%s:8888" % REGISTRY_IP)
+        self.net = EdgeNet(100, "%s:9999" % REGISTRY_IP)
 
     def get_target(self, policy):
         if policy is "cloud":
@@ -53,7 +53,7 @@ class Edgebit(object):
         time_to_get_target = (et - st)
 
         st = et
-        url = "http://%s:8090/foo" % target
+        url = "http://%s:13014/foo" % target
         resp = requests.post(url, json={"data": data})
         rjson = resp.json()
         assert rjson.get("status", -1) == 0

@@ -22,7 +22,7 @@ class EdgeNet(object):
 
     def probe_candidates(self, candidates):
         def worker(ip_addr, responses):
-            resp = requests.get("http://%s:8888/stats" % ip_addr)
+            resp = requests.get("http://%s:13013/stats" % ip_addr)
             rjson = resp.json()["result"]
             rjson["ip_addr"] = ip_addr
             rjson["latency"] = resp.elapsed.total_seconds() * 1000
