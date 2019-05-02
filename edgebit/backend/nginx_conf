@@ -1,0 +1,25 @@
+upstream edgebits  {
+    server localhost:8080;
+    server localhost:8081;
+    server localhost:8082;
+    server localhost:8083;
+    server localhost:8084;
+    server localhost:8085;
+    server localhost:8086;
+    server localhost:8087;
+    server localhost:8088;
+    server localhost:8089;
+    server localhost:8089;
+    server localhost:8091;
+    server localhost:8092;
+    server localhost:8093;
+    server localhost:8094;
+    server localhost:8095;
+}
+
+server {
+  listen 13014;
+  location / {
+    proxy_pass  http://edgebits;
+  }
+}
