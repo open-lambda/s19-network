@@ -67,9 +67,9 @@ class Edgebit(object):
         time_to_get_target = (et - st)
 
         st = et
-        url = "http://%s:13014/foo" % target
+        url = "http://%s:13014/bar" % target
         print '[%s] hitting %s' % (self._id, url)
-        resp = requests.post(url, json={"data": data, "rounds": self.rounds})
+        resp = requests.post(url, json={"data": data})
         rjson = resp.json()
         assert rjson.get("status", -1) == 0, "failed on %r" % rjson
         et = time.time()
@@ -111,7 +111,7 @@ def main(args):
         "num_iters": args.num_iters, 
         "rounds": args.rounds
     }
-    filename = "{id}_{size}_{policy}_{num_iters}_{rounds}.json".format( **result)
+    filename = "bar_{id}_{size}_{policy}_{num_iters}_{rounds}.json".format( **result)
 
     eb.run()
 
