@@ -1,5 +1,5 @@
 sz='512K'
-policy='cloud'
+policy='best'
 ni=50
 rounds=500
 

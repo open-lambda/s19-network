@@ -14,8 +14,8 @@ sys.path = [edgesim_package] + sys.path
 
 from edgesim.device.api import EdgeNet
 
-CLOUD_IP = "ms0935.utah.cloudlab.us"
-REGISTRY_IP = "ms0935.utah.cloudlab.us"
+CLOUD_IP = "ms0801.utah.cloudlab.us"
+REGISTRY_IP = CLOUD_IP
 
 class Edgebit(object):
     def __init__(self, id, size, policy, num_iters, rounds):
@@ -33,13 +33,20 @@ class Edgebit(object):
 
         target = None
         candidates = self.net.get_candidate_edge_clusters()
-        key_fn = lambda d: (d['latency'], d['cpu_load'], d['memory_used'])
+        def key_fn(d):
+            latency = (int(d['latency']) // 5) * 5
+            num_requests = (d['num_requests'] // 5) * 5
+            return (latency, num_requests)
+
+        # key_fn = lambda d: (d['latency'], d['cpu_load'], d['memory_used'])
 
         if self.policy == "random":
             target = random.choice(candidates)
 
         elif self.policy == "best":
             results = self.net.probe_candidates(candidates)
+            ip_sorted_results = sorted(results, key=lambda x: x['ip_addr'])
+            print [(i['num_requests'], i['latency']) for i in ip_sorted_results]
             target = sorted(results, key=key_fn)[0]["ip_addr"]
 
         elif self.policy == "worst":
