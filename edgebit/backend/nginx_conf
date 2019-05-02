@@ -23,3 +23,16 @@ server {
     proxy_pass  http://edgebits;
   }
 }
+
+# Static registry for high performance
+server {
+  listen 9999;
+  location /get_edge_clusters {
+    default_type application/json;
+    return 200 '{"result":["35.224.233.42","35.192.170.150","35.224.57.119"],"status":0}';
+  }
+  location /register {
+    default_type application/json;
+    return 200 '{"status":0, "result":[]}';
+  }
+}
