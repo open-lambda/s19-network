@@ -2,7 +2,7 @@ import traceback
 
 import flask
 
-def run_server(host, port, obj):
+def run_server(host, port, obj, threaded=False):
     assert hasattr(obj, "get_http_endpoints"), "expected obj to have get_http_endpoints"
 
     obj_functions = obj.get_http_endpoints()
@@ -34,4 +34,4 @@ def run_server(host, port, obj):
         except Exception as e:
             return flask.jsonify({'status': -1, 'msg': repr(e), 'traceback': traceback.format_exc()})
 
-    app.run(host=host, port=port)
+    app.run(host=host, port=port, threaded=threaded)
